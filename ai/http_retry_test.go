@@ -158,6 +158,27 @@ func TestSendWithRetryRetriesConnectErrorsLikeUpstream(t *testing.T) {
 	}
 }
 
+func TestSendWithRetryRetriesClosedNetworkConnection(t *testing.T) {
+	attempts := 0
+	client := &http.Client{Transport: roundTripErrorFunc(func(*http.Request) (*http.Response, error) {
+		attempts++
+		return nil, errors.New("readfrom tcp 172.23.145.126:53177->10.88.128.112:80: write tcp 172.23.145.126:53177->10.88.128.112:80: use of closed network connection")
+	})}
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.invalid", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxRetries := 2
+	maxRetryDelayMS := 1
+	_, err = SendWithRetry(client, request, nil, StreamOptions{MaxRetries: &maxRetries, MaxRetryDelayMS: &maxRetryDelayMS})
+	if err == nil || !strings.Contains(err.Error(), "use of closed network connection") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if attempts != 3 {
+		t.Fatalf("closed network connection errors should retry, attempts=%d", attempts)
+	}
+}
+
 func TestSendWithRetryKeepsStreamAliveUntilAbortLikeUpstream(t *testing.T) {
 	abort := make(chan struct{})
 	writeDone := make(chan struct{})

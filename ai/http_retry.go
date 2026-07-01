@@ -166,7 +166,13 @@ func shouldRetryError(err error) bool {
 		return netError.Timeout() || netError.Temporary()
 	}
 	text := strings.ToLower(err.Error())
-	return strings.Contains(text, "connection refused") || strings.Contains(text, "connection reset") || strings.Contains(text, "connection aborted") || strings.Contains(text, "no such host") || strings.Contains(text, "network is unreachable") || strings.Contains(text, "i/o timeout")
+	return strings.Contains(text, "connection refused") ||
+		strings.Contains(text, "connection reset") ||
+		strings.Contains(text, "connection aborted") ||
+		strings.Contains(text, "no such host") ||
+		strings.Contains(text, "network is unreachable") ||
+		strings.Contains(text, "i/o timeout") ||
+		strings.Contains(text, "use of closed network connection")
 }
 
 func shouldRetryStatus(status int) bool {
