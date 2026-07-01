@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-07-01
+
+### 🐛 Bug Fixes
+
+- Retry closed network connection LLM request errors
+
 ## [0.1.0] - 2026-06-29
 
 ### 🚀 Features
