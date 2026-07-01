@@ -410,6 +410,33 @@ func TestAutoDetectModelAndBaseURL(t *testing.T) {
 	}
 }
 
+func TestAutoDetectModelAppliesCustomHeaders(t *testing.T) {
+	resetModels(t)
+	ai.RegisterBuiltinModel(ai.Model{ID: "gpt-4o-mini", Provider: ai.Provider("openai"), API: ai.ApiOpenAIResponses, Headers: map[string]string{"X-Catalog": "catalog", "X-Provider": "catalog"}})
+	t.Setenv("OPENAI_API_KEY", "sk")
+
+	headers := map[string]string{"X-Provider": "custom"}
+	model, err := AutoDetectModel(DetectOptions{Provider: "openai", ModelID: "gpt-4o-mini", Headers: headers})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model.Headers["X-Provider"] != "custom" || model.Headers["X-Catalog"] != "catalog" {
+		t.Fatalf("explicit model headers mismatch: %#v", model.Headers)
+	}
+
+	headers["X-Provider"] = "mutated"
+	if model.Headers["X-Provider"] != "custom" {
+		t.Fatalf("model headers should not alias caller map: %#v", model.Headers)
+	}
+	model, err = AutoDetectModel(DetectOptions{Headers: map[string]string{"X-Auto": "yes"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model.Headers["X-Auto"] != "yes" || model.Headers["X-Catalog"] != "catalog" || model.Headers["X-Provider"] != "catalog" {
+		t.Fatalf("detected model headers mismatch: %#v", model.Headers)
+	}
+}
+
 func TestAutoDetectModelNoCredentialErrorMatchesUpstream(t *testing.T) {
 	resetModels(t)
 	for _, candidate := range detectCandidates {

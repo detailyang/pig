@@ -14,6 +14,7 @@ type DetectOptions struct {
 	Provider string
 	ModelID  string
 	BaseURL  string
+	Headers  map[string]string
 	Auth     AuthStore
 }
 
@@ -43,7 +44,7 @@ func AutoDetectModel(options DetectOptions) (ai.Model, error) {
 		if !ok {
 			return ai.Model{}, fmt.Errorf("%s", explicitModelNotFoundMessage(options.Provider, options.ModelID))
 		}
-		return applyBaseURL(model, options.BaseURL), nil
+		return applyModelOptions(model, options), nil
 	}
 	store := options.Auth
 	if store.Providers == nil {
@@ -59,10 +60,10 @@ func AutoDetectModel(options DetectOptions) (ai.Model, error) {
 			continue
 		}
 		if model, ok := ai.GetModel(ai.Provider(candidate.Provider), candidate.ModelID); ok {
-			return applyBaseURL(model, options.BaseURL), nil
+			return applyModelOptions(model, options), nil
 		}
 		if model, ok := firstModelForProvider(candidate.Provider); ok {
-			return applyBaseURL(model, options.BaseURL), nil
+			return applyModelOptions(model, options), nil
 		}
 	}
 	return ai.Model{}, fmt.Errorf("no API key found. Set one of: %s env vars, or run `/login <provider> <key>` from inside pie.", candidateEnvList())
@@ -125,9 +126,19 @@ func LoadAllFromPathsWithBaseURL(paths []string, cliBaseURL string) (LoadedLocal
 	return LoadLocalModelsFromPaths(paths, cliBaseURL)
 }
 
-func applyBaseURL(model ai.Model, baseURL string) ai.Model {
-	if baseURL != "" {
-		model.BaseURL = strings.TrimRight(baseURL, "/")
+func applyModelOptions(model ai.Model, options DetectOptions) ai.Model {
+	if options.BaseURL != "" {
+		model.BaseURL = strings.TrimRight(options.BaseURL, "/")
+	}
+	if options.Headers != nil {
+		headers := make(map[string]string, len(model.Headers)+len(options.Headers))
+		for key, value := range model.Headers {
+			headers[key] = value
+		}
+		for key, value := range options.Headers {
+			headers[key] = value
+		}
+		model.Headers = headers
 	}
 	return model
 }
