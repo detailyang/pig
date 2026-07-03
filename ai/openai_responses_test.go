@@ -23,6 +23,7 @@ func TestBuildResponsesURL(t *testing.T) {
 		"https://api.openai.com":               "https://api.openai.com/v1/responses",
 		"https://api.openai.com/v1":            "https://api.openai.com/v1/responses",
 		"https://api.openai.com/v1/":           "https://api.openai.com/v1/responses",
+		"https://x.com/v2":                     "https://x.com/v2/responses",
 		"https://gateway.example.com/openai":   "https://gateway.example.com/openai/v1/responses",
 		"https://gateway.example.com/v1/proxy": "https://gateway.example.com/v1/proxy/responses",
 	}

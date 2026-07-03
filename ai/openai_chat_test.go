@@ -31,6 +31,7 @@ func TestBuildOpenAIChatURL(t *testing.T) {
 		"https://api.openai.com":               "https://api.openai.com/v1/chat/completions",
 		"https://api.openai.com/v1":            "https://api.openai.com/v1/chat/completions",
 		"https://api.openai.com/v1/":           "https://api.openai.com/v1/chat/completions",
+		"https://x.com/v2":                     "https://x.com/v2/chat/completions",
 		"https://gateway.example.com/openai":   "https://gateway.example.com/openai/v1/chat/completions",
 		"https://gateway.example.com/v1/proxy": "https://gateway.example.com/v1/proxy/chat/completions",
 	}

@@ -141,7 +141,7 @@ func resolveResponsesBaseURL(baseURL string) string {
 
 func BuildResponsesURL(base string) string {
 	trimmed := strings.TrimRight(base, "/")
-	if strings.HasSuffix(trimmed, "/v1") || strings.Contains(trimmed, "/v1/") {
+	if hasOpenAICompatibleAPIVersionPath(trimmed) {
 		return trimmed + "/responses"
 	}
 	return trimmed + "/v1/responses"

@@ -255,7 +255,7 @@ func (provider *OpenAIChatProvider) Stream(ctx context.Context, model Model, req
 
 func BuildOpenAIChatURL(base string) string {
 	trimmed := strings.TrimRight(base, "/")
-	if strings.HasSuffix(trimmed, "/v1") || strings.Contains(trimmed, "/v1/") {
+	if hasOpenAICompatibleAPIVersionPath(trimmed) {
 		return trimmed + "/chat/completions"
 	}
 	return trimmed + "/v1/chat/completions"
