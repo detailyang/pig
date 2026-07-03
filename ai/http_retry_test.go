@@ -99,21 +99,25 @@ func TestRetryDelayZeroCapMatchesUpstreamMinimumCap(t *testing.T) {
 }
 
 func TestSendWithRetryHonorsStreamOptionsAbortLikeUpstream(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-r.Context().Done()
-	}))
-	defer server.Close()
-
 	abort := make(chan struct{})
-	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, server.URL, nil)
+	close(abort)
+
+	attempts := 0
+	client := &http.Client{Transport: roundTripErrorFunc(func(*http.Request) (*http.Response, error) {
+		attempts++
+		return nil, errors.New("request should not be sent after abort")
+	})}
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	close(abort)
 
-	_, err = sendWithRetry(server.Client(), request, nil, StreamOptions{Abort: abort})
+	_, err = sendWithRetry(client, request, nil, StreamOptions{Abort: abort})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("sendWithRetry should return context.Canceled after Abort closes, got %v", err)
+	}
+	if attempts != 0 {
+		t.Fatalf("sendWithRetry should not send after Abort closes, attempts=%d", attempts)
 	}
 }
 

@@ -81,16 +81,24 @@ func sendWithRetry(client *http.Client, request *http.Request, body []byte, opti
 	if options.Abort != nil {
 		ctx, abortCancel := context.WithCancel(request.Context())
 		cancels = append(cancels, abortCancel)
-		go func() {
-			select {
-			case <-options.Abort:
-				abortCancel()
-			case <-ctx.Done():
-			}
-		}()
+		select {
+		case <-options.Abort:
+			abortCancel()
+		default:
+			go func() {
+				select {
+				case <-options.Abort:
+					abortCancel()
+				case <-ctx.Done():
+				}
+			}()
+		}
 		request = request.WithContext(ctx)
 	}
 	for attempt := 0; ; attempt++ {
+		if err := request.Context().Err(); err != nil {
+			return nil, err
+		}
 		attemptRequest := request.Clone(request.Context())
 		if body != nil {
 			attemptRequest.Body = io.NopCloser(bytes.NewReader(body))
