@@ -94,6 +94,22 @@ go run ./examples/faux_agent
 
 For session-backed embedding, use `sessionrunner.SessionRunner` so the JSONL transcript remains the authoritative conversation store while the agent is running.
 
+## OpenTelemetry
+
+Pig can emit `invoke_agent`, `chat`, and `execute_tool` spans through an OpenTelemetry tracer provider configured by the embedding application:
+
+```go
+runtime := agent.New(agent.Options{
+    Model: model,
+    Stream: agent.DefaultStreamFn(),
+    OpenTelemetry: &agent.OpenTelemetryOptions{
+        TracerProvider: tracerProvider,
+    },
+})
+```
+
+If `TracerProvider` is omitted, Pig uses the global provider from `otel.SetTracerProvider`. The application remains responsible for configuring its SDK/exporter and shutting the provider down. Model and tool inputs and outputs are excluded by default; set `RecordInputs` or `RecordOutputs` only when that data is safe to export.
+
 ## Verification
 
 ```bash

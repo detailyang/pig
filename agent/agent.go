@@ -32,6 +32,7 @@ type Options struct {
 	ToolExecution ToolExecutionMode
 	SteeringMode  QueueMode
 	FollowUpMode  QueueMode
+	OpenTelemetry *OpenTelemetryOptions
 }
 
 type AgentOptions = Options
@@ -49,6 +50,7 @@ type Agent struct {
 	toolExecution ToolExecutionMode
 	steeringMode  QueueMode
 	followUpMode  QueueMode
+	telemetry     *openTelemetry
 	steering      []Message
 	followUp      []Message
 	state         State
@@ -69,7 +71,7 @@ func New(options Options) *Agent {
 	if isZeroSimpleStreamOptions(streamOptions) {
 		streamOptions = config.SimpleOptions
 	}
-	agent := &Agent{model: options.Model, hasModel: !isZeroModel(options.Model), systemPrompt: options.SystemPrompt, sessionID: options.SessionID, tools: options.Tools, stream: options.Stream, streamOptions: copyStreamOptions(streamOptions), config: config, toolExecution: options.ToolExecution, steeringMode: options.SteeringMode, followUpMode: options.FollowUpMode}
+	agent := &Agent{model: options.Model, hasModel: !isZeroModel(options.Model), systemPrompt: options.SystemPrompt, sessionID: options.SessionID, tools: options.Tools, stream: options.Stream, streamOptions: copyStreamOptions(streamOptions), config: config, toolExecution: options.ToolExecution, steeringMode: options.SteeringMode, followUpMode: options.FollowUpMode, telemetry: newOpenTelemetry(options.OpenTelemetry)}
 	if options.InitialState != nil {
 		state := copyState(*options.InitialState)
 		state.Running = false
@@ -304,9 +306,11 @@ func (agent *Agent) endRun() {
 	}
 }
 
-func (agent *Agent) run(ctx context.Context, messages []Message, publishInputMessages bool) (State, error) {
+func (agent *Agent) run(ctx context.Context, messages []Message, publishInputMessages bool) (result State, runErr error) {
 	ctx = agent.beginRun(ctx)
 	defer agent.endRun()
+	ctx, agentSpan := agent.telemetry.startAgent(ctx, agent.model)
+	defer func() { agent.telemetry.endSpan(agentSpan, runErr) }()
 	previous := agent.State()
 	state := previous
 	if publishInputMessages {
@@ -393,8 +397,10 @@ func (agent *Agent) run(ctx context.Context, messages []Message, publishInputMes
 		if agent.thinkingLevel != "" {
 			simpleOptions.ThinkingLevel = agent.thinkingLevel
 		}
-		events, err := stream(ctx, agent.model, llmMessages, ToolSpecs(agent.tools), simpleOptions)
+		modelCtx, modelSpan := agent.telemetry.startModel(ctx, agent.model, llmMessages)
+		events, err := stream(modelCtx, agent.model, llmMessages, ToolSpecs(agent.tools), simpleOptions)
 		if err != nil {
+			agent.telemetry.endModel(modelSpan, ai.AssistantMessage{}, err)
 			if err == context.Canceled && agent.wasAborted() {
 				err = fmt.Errorf("aborted")
 			}
@@ -403,7 +409,8 @@ func (agent *Agent) run(ctx context.Context, messages []Message, publishInputMes
 			agent.publish(Event{Type: EventTypeError, Error: err})
 			return state, err
 		}
-		assistantMessage, err := agent.consumeAssistantStream(ctx, events, agent.model)
+		assistantMessage, err := agent.consumeAssistantStream(modelCtx, events, agent.model)
+		agent.telemetry.endModel(modelSpan, assistantMessage, err)
 		if err != nil {
 			if err == context.Canceled && agent.wasAborted() {
 				err = fmt.Errorf("aborted")
@@ -970,10 +977,18 @@ func (agent *Agent) removePendingToolCall(id string) {
 	}
 }
 
-func (agent *Agent) executePendingToolCall(ctx context.Context, preparedCall preparedToolCall, update ToolUpdateFunc, assistantMessage ai.AssistantMessage, agentContext AgentContext) (ToolResult, error) {
+func (agent *Agent) executePendingToolCall(ctx context.Context, preparedCall preparedToolCall, update ToolUpdateFunc, assistantMessage ai.AssistantMessage, agentContext AgentContext) (result ToolResult, err error) {
 	call := preparedCall.Call
 	agent.addPendingToolCall(call.ID)
 	defer agent.removePendingToolCall(call.ID)
+	ctx, span := agent.telemetry.startTool(ctx, call, preparedCall.ArgsValue)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			agent.telemetry.endTool(span, result, fmt.Errorf("tool execution panic: %v", recovered))
+			panic(recovered)
+		}
+		agent.telemetry.endTool(span, result, err)
+	}()
 	return agent.executeToolCall(ctx, preparedCall, update, assistantMessage, agentContext)
 }
 
