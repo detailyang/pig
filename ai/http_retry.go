@@ -162,6 +162,9 @@ func shouldRetryError(err error) bool {
 	if err == nil || IsCanceledError(err) {
 		return false
 	}
+	if errors.Is(err, io.EOF) {
+		return true
+	}
 	var urlError *url.Error
 	if errors.As(err, &urlError) {
 		if urlError.Timeout() {

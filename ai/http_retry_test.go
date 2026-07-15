@@ -162,6 +162,26 @@ func TestSendWithRetryRetriesConnectErrorsLikeUpstream(t *testing.T) {
 	}
 }
 
+func TestSendWithRetryRetriesEOF(t *testing.T) {
+	attempts := 0
+	client := &http.Client{Transport: roundTripErrorFunc(func(*http.Request) (*http.Response, error) {
+		attempts++
+		return nil, io.EOF
+	})}
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://example.invalid", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxRetryDelayMS := 1
+	_, err = sendWithRetry(client, request, nil, StreamOptions{MaxRetryDelayMS: &maxRetryDelayMS})
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if attempts != defaultMaxRetries+1 {
+		t.Fatalf("EOF should use the default retry count, attempts=%d", attempts)
+	}
+}
+
 func TestSendWithRetryRetriesClosedNetworkConnection(t *testing.T) {
 	attempts := 0
 	client := &http.Client{Transport: roundTripErrorFunc(func(*http.Request) (*http.Response, error) {
