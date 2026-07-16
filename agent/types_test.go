@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -130,6 +132,37 @@ func TestAgentUpstreamExportedNames(t *testing.T) {
 	var upstreamConvert ConvertToLlm = convert
 	if got := upstreamConvert([]AgentMessage{message}); len(got) != 1 || got[0].Role != ai.RoleUser {
 		t.Fatalf("ConvertToLlm alias mismatch: %#v", got)
+	}
+}
+
+func TestDefaultStreamSendsLeadingSystemMessageAsCodexInstructions(t *testing.T) {
+	var requestBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: response.completed\ndata: {\"response\":{\"status\":\"completed\"}}\n\n"))
+	}))
+	defer server.Close()
+
+	messages := []ai.Message{
+		{Role: ai.RoleSystem, Content: []ai.ContentBlock{{Type: ai.ContentText, Text: "product instructions"}}},
+		{Role: ai.RoleUser, Content: []ai.ContentBlock{{Type: ai.ContentText, Text: "hello"}}},
+	}
+	stream, err := DefaultStreamFn()(context.Background(), ai.Model{ID: "gpt-test", Provider: "openai-codex", API: ai.ApiOpenAICodexResponses, BaseURL: server.URL}, messages, nil, ai.SimpleStreamOptions{Base: ai.StreamOptions{APIKey: "test-token"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := stream.Result(); !ok {
+		t.Fatal("expected completed stream")
+	}
+	if requestBody["instructions"] != "product instructions" {
+		t.Fatalf("instructions = %#v", requestBody["instructions"])
+	}
+	input, ok := requestBody["input"].([]any)
+	if !ok || len(input) != 1 || input[0].(map[string]any)["role"] != "user" {
+		t.Fatalf("input = %#v", requestBody["input"])
 	}
 }
 

@@ -702,7 +702,7 @@ type StreamFn = StreamFunc
 
 func DefaultStreamFn() StreamFn {
 	return func(ctx context.Context, model ai.Model, messages []ai.Message, tools []ai.Tool, options ai.SimpleStreamOptions) (*ai.AssistantMessageEventStream, error) {
-		return ai.StreamSimple(ctx, model, ai.Context{Messages: messages, Tools: tools}, options), nil
+		return ai.StreamSimple(ctx, model, ai.ContextFromMessages(messages, tools), options), nil
 	}
 }
 

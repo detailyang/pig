@@ -110,13 +110,7 @@ func WrapStreamFn(base StreamFunc, emit func(string)) StreamFunc {
 }
 
 func debugContext(messages []ai.Message, tools []ai.Tool) ai.Context {
-	context := ai.Context{Messages: messages, Tools: tools}
-	if len(messages) == 0 || messages[0].Role != ai.RoleSystem {
-		return context
-	}
-	context.SystemPrompt = contentBlocksLog(messages[0].Content)
-	context.Messages = append([]ai.Message(nil), messages[1:]...)
-	return context
+	return ai.ContextFromMessages(messages, tools)
 }
 
 func emitDebugLine(emit func(string), line string) {

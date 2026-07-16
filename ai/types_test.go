@@ -430,6 +430,29 @@ func TestMessageJSONRoundTrip(t *testing.T) {
 	}
 }
 
+func TestContextFromMessagesPromotesLeadingSystemMessage(t *testing.T) {
+	messages := []Message{
+		{Role: RoleSystem, Content: []ContentBlock{{Type: ContentText, Text: "first"}, {Type: ContentText, Text: "second"}}},
+		{Role: RoleUser, Content: []ContentBlock{{Type: ContentText, Text: "hello"}}},
+	}
+	tools := []Tool{{Name: "read"}}
+
+	context := ContextFromMessages(messages, tools)
+	if !context.HasSystemPrompt || context.SystemPrompt != "first\nsecond" {
+		t.Fatalf("system prompt = %#v", context)
+	}
+	if len(context.Messages) != 1 || context.Messages[0].Role != RoleUser || len(context.Tools) != 1 {
+		t.Fatalf("context = %#v", context)
+	}
+}
+
+func TestContextFromMessagesPreservesExplicitEmptySystemPrompt(t *testing.T) {
+	context := ContextFromMessages([]Message{{Role: RoleSystem}}, nil)
+	if !context.HasSystemPrompt || context.SystemPrompt != "" || len(context.Messages) != 0 {
+		t.Fatalf("context = %#v", context)
+	}
+}
+
 func TestContextSystemPromptOptionSemanticsLikeUpstream(t *testing.T) {
 	omitted, err := json.Marshal(Context{})
 	if err != nil {

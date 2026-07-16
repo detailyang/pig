@@ -1812,6 +1812,18 @@ type Context struct {
 	HasTools        bool      `json:"-"`
 }
 
+// ContextFromMessages promotes a leading system message to the provider-level system prompt.
+func ContextFromMessages(messages []Message, tools []Tool) Context {
+	context := Context{Messages: messages, Tools: tools}
+	if len(messages) == 0 || messages[0].Role != RoleSystem {
+		return context
+	}
+	context.SystemPrompt = blocksText(messages[0].Content)
+	context.HasSystemPrompt = true
+	context.Messages = messages[1:]
+	return context
+}
+
 func (context Context) MarshalJSON() ([]byte, error) {
 	type alias Context
 	object := struct {
