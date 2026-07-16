@@ -473,6 +473,8 @@ func HandleOpenAIResponsesEvent(event sseEvent, stream *AssistantMessageEventStr
 			}
 			stream.Emit(AssistantMessageEvent{Type: EventTextEnd, ContentIndex: index, Content: text, Partial: openAIResponsesPartialContent(stream, index, ContentBlock{Type: ContentText, Text: partialText})})
 		}
+	case "response.reasoning_summary_part.added":
+		startOpenAIResponsesReasoningSummaryPart(stream)
 	case "response.reasoning_summary_text.delta":
 		index := lastOpenAIResponsesContentIndex(stream, ContentThinking, true)
 		if index < 0 {
@@ -528,6 +530,22 @@ func HandleOpenAIResponsesEvent(event sseEvent, stream *AssistantMessageEventStr
 		return false
 	}
 	return true
+}
+
+func startOpenAIResponsesReasoningSummaryPart(stream *AssistantMessageEventStream) {
+	index := lastOpenAIResponsesContentIndex(stream, ContentThinking, true)
+	if index < 0 {
+		index = nextOpenAIResponsesContentIndex(stream)
+		stream.Emit(AssistantMessageEvent{Type: EventThinkingStart, ContentIndex: index, Partial: openAIResponsesPartialContent(stream, index, ContentBlock{Type: ContentThinking})})
+		return
+	}
+	if openAIResponsesContentText(stream, index, ContentThinking) == "" {
+		return
+	}
+
+	index = nextOpenAIResponsesContentIndex(stream)
+	stream.Emit(AssistantMessageEvent{Type: EventThinkingStart, ContentIndex: index, Partial: openAIResponsesPartialContent(stream, index, ContentBlock{Type: ContentThinking})})
+	stream.Emit(AssistantMessageEvent{Type: EventThinkingDelta, ContentIndex: index, Delta: "\n\n", Partial: openAIResponsesPartialContent(stream, index, ContentBlock{Type: ContentThinking, Thinking: "\n\n"})})
 }
 
 func lastOpenAIResponsesContentIndex(stream *AssistantMessageEventStream, blockType ContentType, options ...bool) int {

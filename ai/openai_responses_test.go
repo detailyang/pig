@@ -872,6 +872,32 @@ func TestHandleOpenAIResponsesEventMapsIncompleteStatus(t *testing.T) {
 	}
 }
 
+func TestHandleOpenAIResponsesSeparatesReasoningSummaryParts(t *testing.T) {
+	stream := NewAssistantMessageEventStream()
+	HandleOpenAIResponsesEvent(sseEvent{event: "response.output_item.added", data: `{"item":{"type":"reasoning"}}`}, stream)
+	HandleOpenAIResponsesEvent(sseEvent{event: "response.reasoning_summary_part.added", data: `{"summary_index":0,"part":{"type":"summary_text","text":""}}`}, stream)
+	HandleOpenAIResponsesEvent(sseEvent{event: "response.reasoning_summary_text.delta", data: `{"summary_index":0,"delta":"**Planning structured confirmation question**"}`}, stream)
+	HandleOpenAIResponsesEvent(sseEvent{event: "response.reasoning_summary_text.done", data: `{"summary_index":0,"text":"**Planning structured confirmation question**"}`}, stream)
+	HandleOpenAIResponsesEvent(sseEvent{event: "response.reasoning_summary_part.added", data: `{"summary_index":1,"part":{"type":"summary_text","text":""}}`}, stream)
+	HandleOpenAIResponsesEvent(sseEvent{event: "response.reasoning_summary_text.delta", data: `{"summary_index":1,"delta":"**Refining concise confirmation format**"}`}, stream)
+	HandleOpenAIResponsesEvent(sseEvent{event: "response.reasoning_summary_text.done", data: `{"summary_index":1,"text":"**Refining concise confirmation format**"}`}, stream)
+	stream.Close(DoneReasonStop)
+
+	message, ok := stream.Result()
+	if !ok || len(message.Content) != 2 || message.Content[0].Thinking != "**Planning structured confirmation question**" || message.Content[1].Thinking != "**Refining concise confirmation format**" {
+		t.Fatalf("thinking parts = %#v ok=%v", message.Content, ok)
+	}
+	var deltas string
+	for _, event := range stream.Events() {
+		if event.Type == EventThinkingDelta {
+			deltas += event.Delta
+		}
+	}
+	if deltas != "**Planning structured confirmation question**\n\n**Refining concise confirmation format**" {
+		t.Fatalf("streamed thinking = %q", deltas)
+	}
+}
+
 func TestHandleOpenAIResponsesEventUsesReasoningDoneText(t *testing.T) {
 	stream := NewAssistantMessageEventStream()
 	HandleOpenAIResponsesEvent(sseEvent{event: "response.reasoning_summary_text.delta", data: `{"delta":"pla"}`}, stream)
