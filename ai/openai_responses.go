@@ -509,7 +509,7 @@ func HandleOpenAIResponsesEvent(event sseEvent, stream *AssistantMessageEventStr
 		if usage := usageFromResponse(payload); usage != nil {
 			addOpenAIResponsesUsage(&message, usage)
 		}
-		if completedHasToolCall(payload) {
+		if len(message.ToolCalls) > 0 || completedHasToolCall(payload) {
 			message.StopReason = StopReasonToolCalls
 			stream.Emit(AssistantMessageEvent{Type: EventDone, DoneReason: DoneReasonToolCalls, Message: &message})
 		} else if responseStatus(payload) == "incomplete" {

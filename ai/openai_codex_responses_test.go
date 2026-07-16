@@ -78,6 +78,25 @@ func TestBuildCodexResponsesRequestBodyPreservesExplicitEmptyInstructionsLikeUps
 	}
 }
 
+func TestCodexResponsesInfersToolStopReasonWhenCompletedOutputIsOmitted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(strings.Join([]string{
+			"event: response.output_item.added\ndata: {\"item\":{\"type\":\"function_call\",\"call_id\":\"call-1\",\"name\":\"read\"}}\n\n",
+			"event: response.function_call_arguments.done\ndata: {\"arguments\":\"{\\\"path\\\":\\\"README.md\\\"}\"}\n\n",
+			"event: response.completed\ndata: {\"response\":{\"status\":\"completed\"}}\n\n",
+		}, "")))
+	}))
+	defer server.Close()
+
+	provider := NewCodexResponsesProvider(WithCodexResponsesHTTPClient(server.Client()))
+	model := Model{ID: "gpt-test", Provider: Provider("openai-codex"), API: ApiOpenAICodexResponses, BaseURL: server.URL}
+	message, ok := provider.Stream(context.Background(), model, Context{}, StreamOptions{APIKey: "test-token"}).Result()
+	if !ok || message.StopReason != StopReasonToolCalls || len(message.ToolCalls) != 1 || message.ToolCalls[0].Arguments["path"] != "README.md" {
+		t.Fatalf("message = %#v ok=%v", message, ok)
+	}
+}
+
 func TestCodexResponsesProviderRequestAndSSE(t *testing.T) {
 	t.Setenv("CODEX_ACCOUNT_ID", "acct-1")
 	var body map[string]any
